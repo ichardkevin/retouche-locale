@@ -1,0 +1,1427 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Verrou de confidentialité : cette page n'a le droit de contacter AUCUN serveur. -->
+<!-- (connect-src 'none' : aucune requête réseau possible depuis la page ; seuls les fichiers de l'app elle-même peuvent être chargés) -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' blob: data:; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; worker-src 'self'; manifest-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1f2125">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Retouche locale</title>
+<style>
+  :root {
+    --bg: #16171a; --panel: #1f2125; --panel2: #272a2f; --line: #33373d;
+    --text: #e8e9eb; --muted: #9aa0a8; --accent: #f2b84b; --danger: #e5675f;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; }
+  .badge { font-size: 12px; color: #9fd8a5; background: #1f3324; border: 1px solid #2f5236; padding: 3px 8px; border-radius: 99px; }
+  .spacer { flex: 1; }
+  button, .btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+  button, .btn, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; cursor: pointer; }
+  button:hover, .btn:hover { border-color: #4a4f57; }
+  button.primary { background: var(--accent); color: #1b1404; border-color: var(--accent); font-weight: 600; }
+  button.active { border-color: var(--accent); color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type=file] { display: none; }
+  #fname { color: var(--muted); font-size: 13px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #stage { flex: 1; position: relative; overflow: hidden; touch-action: none; min-width: 0; min-height: 0; background:
+    repeating-conic-gradient(#1b1c20 0 25%, #191a1d 0 50%) 0 0 / 24px 24px; }
+  #canvasWrap { position: absolute; left: 0; top: 0; line-height: 0; box-shadow: 0 6px 30px rgba(0,0,0,.5); will-change: transform; }
+  .floating { position: absolute; display: flex; gap: 6px; z-index: 3; }
+  .floating[hidden] { display: none; }
+  .floating button { background: rgba(31,33,37,.9); backdrop-filter: blur(4px); }
+  #zoomBar { top: 10px; right: 10px; }
+  #zoomBar button { padding: 4px 10px; min-width: 36px; }
+  #floatbar { left: 50%; bottom: 14px; transform: translateX(-50%); }
+  #view, #overlay { display: block; }
+  #overlay { position: absolute; inset: 0; touch-action: none; }
+  #empty { position: absolute; inset: 24px; border: 2px dashed var(--line); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted); text-align: center; padding: 16px; }
+  #empty[hidden] { display: none; }
+  #empty strong { color: var(--text); font-size: 16px; }
+  #stage.drag #empty { border-color: var(--accent); color: var(--accent); }
+  #status { position: absolute; bottom: 64px; z-index: 4; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.75); padding: 6px 12px; border-radius: 8px; font-size: 13px; pointer-events: none; }
+  #status:empty { display: none; }
+  aside { width: 330px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; }
+  aside section { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .sub { font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+  .layers { display: flex; flex-direction: column; gap: 4px; }
+  .layer { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; background: var(--panel2); border: 1px solid transparent; cursor: pointer; }
+  .layer.sel { border-color: var(--accent); }
+  .layer .name { flex: 1; }
+  .layer .tag { font-size: 11px; color: var(--muted); }
+  .layer .eye { padding: 0 6px; border: none; background: none; color: var(--muted); }
+  .layer.hidden .name { opacity: .45; text-decoration: line-through; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  .hint.live { color: var(--accent); }
+  .ctl { margin-bottom: 12px; }
+  .ctl-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; cursor: default; user-select: none; }
+  .ctl-head output { color: var(--muted); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; font-size: 13px; }
+  .field select { padding: 4px 8px; }
+  input[type=color] { width: 36px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: none; padding: 0; }
+  /* Petit écran (téléphone) : photo en haut, réglages dessous */
+  @media (max-width: 760px) {
+    header { padding: 6px 8px; gap: 6px; }
+    header h1, #fname, .lbl { display: none; }
+    header .spacer { display: none; }
+    main { flex-direction: column; }
+    #stage { flex: 1 1 58%; }
+    aside { width: 100%; flex: 0 1 42%; border-left: none; border-top: 1px solid var(--line); }
+    aside section { padding: 12px; }
+  }
+  /* Écran tactile : tout plus gros sous le doigt */
+  @media (pointer: coarse) {
+    button, .btn, select { padding: 9px 12px; font-size: 15px; }
+    #zoomBar button { padding: 7px 12px; }
+    input[type=range] { height: 32px; }
+    .layer { padding: 11px 12px; }
+    .ctl { margin-bottom: 14px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Retouche locale</h1>
+  <span class="badge" title="La page est verrouillée : elle ne peut contacter aucun serveur. Les photos ne quittent jamais cet appareil.">🔒 100 % local</span>
+  <label class="btn">📂<span class="lbl"> Ouvrir une photo…</span><input type="file" id="file" accept="image/*"></label>
+  <span id="fname"></span>
+  <span class="spacer"></span>
+  <button id="btnUndo" disabled title="Annuler (⌘Z)">↶<span class="lbl"> Annuler</span></button>
+  <button id="btnGuides" disabled title="Masquer / afficher les contours et les points (touche H) pour juger le résultat">◻<span class="lbl"> Repères</span></button>
+  <button id="btnOrig" disabled title="Maintenir appuyé (ou touche O) pour voir l'original">👁<span class="lbl"> Voir l'original</span></button>
+  <select id="fmt" title="Format d'export">
+    <option value="png">PNG (sans perte)</option>
+    <option value="jpeg">JPEG 95 %</option>
+  </select>
+  <button id="btnExport" class="primary" disabled>Exporter</button>
+</header>
+<main>
+  <div id="stage">
+    <div id="empty"><strong>Ouvrez une photo</strong><span>avec le bouton 📂, ou glissez-la ici</span><span style="font-size:12px">La photo est lue par votre navigateur uniquement, elle n'est envoyée nulle part.</span></div>
+    <div id="canvasWrap" hidden>
+      <canvas id="view"></canvas>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div id="zoomBar" class="floating" hidden>
+      <button id="zoomOut" title="Dézoomer (touche -)">−</button>
+      <button id="zoomFit" title="Ajuster à l'écran (touche 0)">Ajuster</button>
+      <button id="zoomIn" title="Zoomer (touche +)">+</button>
+    </div>
+    <div id="floatbar" class="floating" hidden>
+      <button id="fbClose" class="primary">✓ Fermer</button>
+      <button id="fbBack">⌫ Dernier point</button>
+      <button id="fbCancel">✕</button>
+    </div>
+    <div id="status"></div>
+  </div>
+  <aside id="panel">
+    <section>
+      <h2>Calques</h2>
+      <div class="layers" id="layers"></div>
+      <div class="sub">✂️ Découper, redimensionner, déplacer</div>
+      <div class="row">
+        <button id="addPieceLasso" disabled title="Entourer à main levée">Lasso</button>
+        <button id="addPiecePoly" disabled title="Poser les points du contour un par un">Points</button>
+        <button id="addPieceRect" disabled>Rectangle</button>
+        <button id="addPieceEllipse" disabled>Ovale</button>
+      </div>
+      <div class="sub">✨ Effets sur place (filtres, zoom fondu)</div>
+      <div class="row">
+        <button id="addRect" disabled>Zone rectangle</button>
+        <button id="addEllipse" disabled>Zone ovale</button>
+      </div>
+      <p class="hint" id="drawHint"></p>
+    </section>
+    <section id="zoneSec" hidden>
+      <h2 id="zoneTitle">Zone</h2>
+      <div id="zoneCtl"></div>
+    </section>
+    <section id="filterSec" hidden>
+      <h2 id="filterTitle">Filtres</h2>
+      <div id="filterCtl"></div>
+      <div class="row"><button id="resetFilters">Réinitialiser les filtres</button></div>
+      <p class="hint">Double-clic (ou double appui) sur le nom d'un réglage : retour à sa valeur par défaut.</p>
+    </section>
+  </aside>
+</main>
+
+<script>
+"use strict";
+// ---------- État ----------
+const FILTERS = [
+  { k: 'bw',       label: 'Noir & blanc', min: 0,    max: 100, unit: ' %' },
+  { k: 'sepia',    label: 'Sépia',        min: 0,    max: 100, unit: ' %' },
+  { k: 'bright',   label: 'Luminosité',   min: -100, max: 100 },
+  { k: 'contrast', label: 'Contraste',    min: -100, max: 100 },
+  { k: 'sat',      label: 'Saturation',   min: -100, max: 100 },
+  { k: 'warm',     label: 'Chaleur',      min: -100, max: 100 },
+  { k: 'blur',     label: 'Flou',         min: 0,    max: 60,  unit: ' px' },
+  { k: 'sharp',    label: 'Netteté',      min: 0,    max: 100, unit: ' %' },
+];
+const newFilters = () => Object.fromEntries(FILTERS.map(f => [f.k, 0]));
+const isNeutral = f => FILTERS.every(d => !f[d.k]);
+
+// Calques (tableau state.layers, rendus dans l'ordre) :
+//  - type 'zone'  : effet sur place (filtres, zoom fondu), forme rect/ellipse aux coordonnées x,y,w,h
+//  - type 'piece' : découpe de la zone src (rect/ellipse/lasso), posée en (cx,cy) avec taille/rotation/miroir
+const state = {
+  img: null, url: null, name: 'photo', W: 0, H: 0,
+  s: 1,        // pixels du canvas d'aperçu par pixel image
+  css: 1,      // pixels CSS par pixel image
+  global: newFilters(),
+  layers: [],
+  selected: null,   // 'global' | id de calque | null
+  drawMode: null,   // 'piece-lasso' | 'piece-rect' | 'piece-ellipse' | 'zone-rect' | 'zone-ellipse' | null
+  showOriginal: false,
+  dirty: false,
+};
+let nextId = 1;
+
+const $ = id => document.getElementById(id);
+const view = $('view'), overlay = $('overlay');
+const vctx = view.getContext('2d', { willReadFrequently: true });
+const octx = overlay.getContext('2d');
+const tmp = document.createElement('canvas');
+const tctx = tmp.getContext('2d', { willReadFrequently: true });
+const mcan = document.createElement('canvas');
+const mctx = mcan.getContext('2d', { willReadFrequently: true });
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const isPiece = z => z.type === 'piece';
+
+function newZone(shape, x, y) {
+  return { id: nextId++, type: 'zone', shape, x, y, w: 0, h: 0, zoom: 1, ox: 0, oy: 0, blend: 60, feather: 0,
+    border: 0, borderColor: '#ffffff', source: 'composite', visible: true, f: newFilters() };
+}
+function newPiece(shape, x, y) {
+  // pts : points du contour (coord. image d'origine) ; px,py : pivot fixe de la transformation
+  return { id: nextId++, type: 'piece', shape, src: { x, y, w: 0, h: 0 }, pts: [[x, y]], smooth: false,
+    px: x, py: y, cx: x, cy: y, scale: 1, rot: 0, flip: false, feather: 0, fade: 'auto',
+    border: 0, borderColor: '#ffffff', source: 'composite', visible: true, f: newFilters() };
+}
+
+// ---------- Chargement ----------
+function loadFile(file) {
+  if (!file) return;
+  if (state.dirty && !confirm('Abandonner les retouches en cours ?')) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    if (state.url) URL.revokeObjectURL(state.url);
+    let pic = img, W = img.naturalWidth, H = img.naturalHeight;
+    const limit = touchUI() ? 24e6 : 100e6; // au-delà, risque de saturer la mémoire du navigateur
+    if (W * H > limit && confirm(`Cette photo fait ${Math.round(W * H / 1e6)} Mpx : c'est beaucoup pour cet appareil, le navigateur risque de planter.\n\nLa réduire à ${Math.round(limit / 1e6)} Mpx pour la retoucher ?`)) {
+      const f = Math.sqrt(limit / (W * H)), c = document.createElement('canvas');
+      c.width = Math.round(W * f); c.height = Math.round(H * f);
+      const cx = c.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(img, 0, 0, c.width, c.height);
+      pic = c; W = c.width; H = c.height;
+    }
+    Object.assign(state, { img: pic, url, W, H,
+      name: file.name.replace(/\.[^.]+$/, '') || 'photo', layers: [], global: newFilters(),
+      selected: 'global', drawMode: null, dirty: false });
+    undoStack.length = 0; poly = null; drag = null;
+    $('fname').textContent = `${file.name} — ${state.W} × ${state.H}`;
+    $('empty').hidden = true; $('canvasWrap').hidden = false;
+    document.querySelectorAll('header button, aside button').forEach(b => b.disabled = false);
+    fitView(); refreshUI();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    alert("Ce navigateur ne sait pas lire ce fichier.\nPhotos HEIC/HEIF : réglez l'appareil photo en JPEG, ou convertissez la photo en JPEG.");
+  };
+  img.src = url;
+}
+$('file').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+const stage = $('stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drag'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('drag'));
+stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drag'); loadFile(e.dataTransfer.files[0]); });
+window.addEventListener('beforeunload', e => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---------- Affichage : la photo peut être zoomée et déplacée ----------
+const wrap = $('canvasWrap');
+const vw = { fit: 1, zoom: 1, tx: 0, ty: 0 }; // fit : px écran par px image à « Ajuster » ; tx,ty : position (px écran)
+const MAXZOOM = 16;
+function fitView() {
+  if (!state.img) return;
+  const r = stage.getBoundingClientRect();
+  vw.fit = Math.min((r.width - 24) / state.W, (r.height - 24) / state.H, 1);
+  vw.zoom = 1;
+  applyView(true);
+}
+function applyView(final) {
+  if (!state.img) return;
+  const r = stage.getBoundingClientRect();
+  const css = vw.fit * vw.zoom, w = state.W * css, h = state.H * css;
+  vw.tx = w <= r.width ? (r.width - w) / 2 : clamp(vw.tx, r.width - w, 0); // l'image reste dans le cadre
+  vw.ty = h <= r.height ? (r.height - h) / 2 : clamp(vw.ty, r.height - h, 0);
+  state.css = css;
+  wrap.style.transform = `translate(${vw.tx}px, ${vw.ty}px)`;
+  for (const c of [view, overlay]) { c.style.width = w + 'px'; c.style.height = h + 'px'; }
+  $('zoomFit').textContent = vw.zoom > 1.001 ? Math.round(css * 100) + ' %' : 'Ajuster';
+  clearTimeout(applyView.t);
+  if (final) setResolution(); else applyView.t = setTimeout(setResolution, 180); // pendant un geste : on étire, puis on recalcule net
+}
+// Résolution de l'aperçu : nette à l'écran, plafonnée pour rester fluide (surtout sur téléphone)
+function setResolution() {
+  const dpr = window.devicePixelRatio || 1, maxPx = touchUI() ? 8e6 : 16e6;
+  const s = Math.min(1, state.css * dpr, Math.sqrt(maxPx / (state.W * state.H)));
+  const cw = Math.max(1, Math.round(state.W * s)), ch = Math.max(1, Math.round(state.H * s));
+  if (view.width !== cw || view.height !== ch) { view.width = overlay.width = cw; view.height = overlay.height = ch; }
+  state.s = s;
+  scheduleRender();
+}
+function zoomAt(sx, sy, f) {
+  const z = clamp(vw.zoom * f, 1, MAXZOOM); f = z / vw.zoom;
+  vw.tx = sx - (sx - vw.tx) * f; vw.ty = sy - (sy - vw.ty) * f; vw.zoom = z;
+  applyView(false);
+}
+function zoomCenter(f) { const r = stage.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); }
+window.addEventListener('resize', fitView);
+
+let pending = false;
+function scheduleRender() {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    if (!state.img) return;
+    renderTo(vctx, state.s, state.showOriginal);
+    drawOverlay();
+  });
+}
+
+// ---------- Rendu (même code pour l'aperçu et l'export pleine résolution) ----------
+function renderTo(ctx, s, originalOnly) {
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.drawImage(state.img, 0, 0, cw, ch);
+  if (originalOnly) return;
+  if (!isNeutral(state.global)) {
+    const d = ctx.getImageData(0, 0, cw, ch);
+    applyFilters(d, state.global, s);
+    ctx.putImageData(d, 0, 0);
+  }
+  for (const z of state.layers) {
+    if (!z.visible) continue;
+    if (isPiece(z)) { if (z.src.w >= 1 && z.src.h >= 1) renderPiece(ctx, z, s); }
+    else renderZone(ctx, z, s);
+  }
+}
+
+// Pixels de départ (région du canvas) : image retouchée en dessous, ou photo originale.
+function grabSource(ctx, z, x, y, w, h) {
+  if (z.source !== 'original') return ctx.getImageData(x, y, w, h);
+  if (tmp.width < w || tmp.height < h) { tmp.width = Math.max(tmp.width, w); tmp.height = Math.max(tmp.height, h); }
+  tctx.setTransform(1, 0, 0, 1, 0, 0);
+  tctx.clearRect(0, 0, w, h);
+  tctx.imageSmoothingEnabled = true; tctx.imageSmoothingQuality = 'high';
+  tctx.drawImage(state.img, -x, -y, ctx.canvas.width, ctx.canvas.height);
+  return tctx.getImageData(0, 0, w, h);
+}
+
+// Échantillonnage bilinéaire (canal c) dans un buffer RGBA w×h
+function bilinear(d, w, h, x, y, out, o, channels) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const xa = clamp(x0, 0, w - 1), xb = clamp(x0 + 1, 0, w - 1), ya = clamp(y0, 0, h - 1), yb = clamp(y0 + 1, 0, h - 1);
+  const i00 = (ya * w + xa) * 4, i10 = (ya * w + xb) * 4, i01 = (yb * w + xa) * 4, i11 = (yb * w + xb) * 4;
+  for (let c = 0; c < channels; c++) {
+    const top = d[i00 + c] + (d[i10 + c] - d[i00 + c]) * fx;
+    const bot = d[i01 + c] + (d[i11 + c] - d[i01 + c]) * fx;
+    out[o + c] = top + (bot - top) * fy;
+  }
+}
+
+// Interpolation bicubique (Catmull-Rom) : plus nette que la bilinéaire pour agrandir. Exacte sur les pixels entiers.
+const WX = new Float64Array(4), WY = new Float64Array(4);
+function cubicW(t, W) {
+  const t2 = t * t, t3 = t2 * t;
+  W[0] = (-t3 + 2 * t2 - t) / 2; W[1] = (3 * t3 - 5 * t2 + 2) / 2; W[2] = (-3 * t3 + 4 * t2 + t) / 2; W[3] = (t3 - t2) / 2;
+}
+function bicubic(d, w, h, x, y, out, o) {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  cubicW(x - x0, WX); cubicW(y - y0, WY);
+  let r = 0, g = 0, b = 0;
+  for (let j = 0; j < 4; j++) {
+    const row = clamp(y0 - 1 + j, 0, h - 1) * w, wy = WY[j];
+    if (!wy) continue;
+    for (let i = 0; i < 4; i++) {
+      const wt = WX[i] * wy;
+      if (!wt) continue;
+      const idx = (row + clamp(x0 - 1 + i, 0, w - 1)) * 4;
+      r += d[idx] * wt; g += d[idx + 1] * wt; b += d[idx + 2] * wt;
+    }
+  }
+  out[o] = r; out[o + 1] = g; out[o + 2] = b;
+}
+
+// Emprise (coordonnées image) d'un calque une fois posé
+function layerBBox(q) {
+  if (!isPiece(q)) return [q.x, q.y, q.x + q.w, q.y + q.h];
+  const e = 2 + q.border + (q.feather || 0), r = q.src, xf = pieceXf(q);
+  const cs = [[r.x - e, r.y - e], [r.x + r.w + e, r.y - e], [r.x - e, r.y + r.h + e], [r.x + r.w + e, r.y + r.h + e]].map(([x, y]) => xf.fwd(x, y));
+  return [Math.min(...cs.map(c => c[0])), Math.min(...cs.map(c => c[1])), Math.max(...cs.map(c => c[0])), Math.max(...cs.map(c => c[1]))];
+}
+// Résolution à laquelle prendre les pixels sources d'un calque agrandi de `mag`.
+// Si aucun calque en dessous ne touche la région, on repart de la photo HD (+ filtres « Photo entière ») ;
+// sinon on prend l'image déjà retouchée telle qu'affichée.
+function pickScale(z, s, mag, ix0, iy0, ix1, iy1) {
+  let useCanvas = false;
+  if (z.source !== 'original') {
+    for (const q of state.layers) {
+      if (q === z) break;
+      if (!q.visible) continue;
+      const b = layerBBox(q);
+      if (b[0] < ix1 && b[2] > ix0 && b[1] < iy1 && b[3] > iy0) { useCanvas = true; break; }
+    }
+  }
+  let ss = useCanvas ? Math.min(s, s * mag) : Math.min(1, s * mag);
+  if (Math.abs(ss - s) < 1e-6) ss = s;
+  return { ss, useCanvas };
+}
+// Pixels sources de la région image [ix0,iy0,ix1,iy1] à l'échelle ss. Le pixel (u,v) du buffer ↔ image ((x0+u+.5)/ss, …)
+function sourceAt(ctx, z, s, ss, useCanvas, ix0, iy0, ix1, iy1) {
+  const CW = Math.max(1, Math.round(state.W * ss)), CH = Math.max(1, Math.round(state.H * ss));
+  const x0 = clamp(Math.floor(ix0 * ss), 0, CW - 1), y0 = clamp(Math.floor(iy0 * ss), 0, CH - 1);
+  const x1 = clamp(Math.ceil(ix1 * ss), x0 + 1, CW), y1 = clamp(Math.ceil(iy1 * ss), y0 + 1, CH);
+  const w = x1 - x0, h = y1 - y0;
+  if (ss === s) return { id: grabSource(ctx, z, x0, y0, w, h), x0, y0 };
+  if (tmp.width < w || tmp.height < h) { tmp.width = Math.max(tmp.width, w); tmp.height = Math.max(tmp.height, h); }
+  tctx.setTransform(1, 0, 0, 1, 0, 0);
+  tctx.clearRect(0, 0, w, h);
+  tctx.imageSmoothingEnabled = true; tctx.imageSmoothingQuality = 'high';
+  if (useCanvas) tctx.drawImage(ctx.canvas, -x0, -y0, ctx.canvas.width * ss / s, ctx.canvas.height * ss / s);
+  else tctx.drawImage(state.img, -x0, -y0, state.W * ss, state.H * ss);
+  const id = tctx.getImageData(0, 0, w, h);
+  if (!useCanvas && z.source !== 'original') applyFilters(id, state.global, ss);
+  return { id, x0, y0 };
+}
+
+function renderZone(ctx, z, s) {
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const X0 = z.x * s, Y0 = z.y * s, X1 = (z.x + z.w) * s, Y1 = (z.y + z.h) * s;
+  const bx = Math.max(0, Math.floor(X0)), by = Math.max(0, Math.floor(Y0));
+  const bw = Math.min(cw, Math.ceil(X1)) - bx, bh = Math.min(ch, Math.ceil(Y1)) - by;
+  if (bw < 1 || bh < 1) return;
+
+  const base = ctx.getImageData(bx, by, bw, bh);
+  const cx = (X0 + X1) / 2, cy = (Y0 + Y1) / 2, rx = (X1 - X0) / 2, ry = (Y1 - Y0) / 2;
+  const ell = z.shape === 'ellipse';
+  const zoom = Math.max(1, z.zoom);
+  let proc;
+  if (zoom === 1) {
+    proc = z.source === 'original' ? grabSource(ctx, z, bx, by, bw, bh)
+                                   : new ImageData(new Uint8ClampedArray(base.data), bw, bh);
+  } else {
+    // Grossissement progressif : ×zoom au centre, revient exactement à ×1 sur le bord
+    const offX = z.ox * s, offY = z.oy * s;
+    const zcx = z.x + z.w / 2 + z.ox, zcy = z.y + z.h / 2 + z.oy;
+    const ix0 = Math.min(z.x, zcx - z.w / 2 / zoom), iy0 = Math.min(z.y, zcy - z.h / 2 / zoom);
+    const ix1 = Math.max(z.x + z.w, zcx + z.w / 2 / zoom), iy1 = Math.max(z.y + z.h, zcy + z.h / 2 / zoom);
+    const { ss, useCanvas } = pickScale(z, s, zoom, ix0, iy0, ix1, iy1);
+    const S = sourceAt(ctx, z, s, ss, useCanvas, ix0 - 3 / ss, iy0 - 3 / ss, ix1 + 3 / ss, iy1 + 3 / ss);
+    const sd = S.id.data, sW = S.id.width, sH = S.id.height, qx0 = S.x0, qy0 = S.y0, fr = ss / s;
+    proc = new ImageData(bw, bh);
+    const pd = proc.data, iz = 1 / zoom, T = z.blend / 100, r0 = 1 - T;
+    for (let j = 0; j < bh; j++) {
+      const py = by + j + 0.5, ny = (py - cy) / ry;
+      for (let i = 0; i < bw; i++) {
+        const px = bx + i + 0.5, nx = (px - cx) / rx;
+        const r = ell ? Math.hypot(nx, ny) : Math.max(Math.abs(nx), Math.abs(ny));
+        let w = 0;
+        if (r >= 1) w = 1;
+        else if (T > 0 && r > r0) { const t = (r - r0) / T; w = t * t * (3 - 2 * t); }
+        const m = iz + (1 - iz) * w;
+        const o = (j * bw + i) * 4;
+        bicubic(sd, sW, sH, (cx + offX * (1 - w) + (px - cx) * m) * fr - qx0 - 0.5, (cy + offY * (1 - w) + (py - cy) * m) * fr - qy0 - 0.5, pd, o);
+        pd[o + 3] = 255;
+      }
+    }
+  }
+  applyFilters(proc, z.f, s);
+
+  // Fusion avec masque (forme + bord adouci). Hors forme : pixel d'origine conservé tel quel.
+  const bd = base.data, pd = proc.data, F = z.feather * s;
+  for (let j = 0; j < bh; j++) {
+    const py = by + j + 0.5;
+    for (let i = 0; i < bw; i++) {
+      const px = bx + i + 0.5;
+      let dist;
+      if (ell) {
+        const nx = (px - cx) / rx, ny = (py - cy) / ry, r = Math.hypot(nx, ny);
+        if (r >= 1 + 2 / Math.min(rx, ry)) continue;
+        const g = r > 1e-6 ? Math.hypot(nx / rx, ny / ry) / r : 1e-6;
+        dist = (1 - r) / g;
+      } else {
+        dist = Math.min(px - X0, X1 - px, py - Y0, Y1 - py);
+      }
+      const a = F > 0 ? clamp(dist / F, 0, 1) : clamp(dist + 0.5, 0, 1);
+      if (a <= 0) continue;
+      const o = (j * bw + i) * 4;
+      if (a >= 1) { bd[o] = pd[o]; bd[o + 1] = pd[o + 1]; bd[o + 2] = pd[o + 2]; }
+      else {
+        bd[o] += (pd[o] - bd[o]) * a; bd[o + 1] += (pd[o + 1] - bd[o + 1]) * a; bd[o + 2] += (pd[o + 2] - bd[o + 2]) * a;
+      }
+    }
+  }
+  ctx.putImageData(base, bx, by);
+
+  if (z.border > 0) {
+    const lw = z.border * s;
+    ctx.save();
+    ctx.lineWidth = lw; ctx.strokeStyle = z.borderColor;
+    ctx.beginPath();
+    if (ell) ctx.ellipse(cx, cy, Math.max(0, rx - lw / 2), Math.max(0, ry - lw / 2), 0, 0, Math.PI * 2);
+    else ctx.rect(X0 + lw / 2, Y0 + lw / 2, Math.max(0, X1 - X0 - lw), Math.max(0, Y1 - Y0 - lw));
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// --- Découpes ---
+const rectPts = r => [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]];
+const ellipsePts = (r, n = 12) => Array.from({ length: n }, (_, i) => {
+  const a = i / n * 2 * Math.PI; return [r.x + r.w / 2 + r.w / 2 * Math.cos(a), r.y + r.h / 2 + r.h / 2 * Math.sin(a)];
+});
+const SUB = 8; // segments par côté quand le contour est lissé
+// Contour réel (liste de points) : les points tels quels, ou une courbe lisse qui passe par eux (Catmull-Rom)
+function polyline(z) {
+  const P = z.pts, n = P.length;
+  if (!z.smooth || n < 3) return P;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const p0 = P[(i - 1 + n) % n], p1 = P[i], p2 = P[(i + 1) % n], p3 = P[(i + 2) % n];
+    for (let k = 0; k < SUB; k++) {
+      const t = k / SUB, t2 = t * t, t3 = t2 * t;
+      out.push([0, 1].map(c => 0.5 * (2 * p1[c] + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t3)));
+    }
+  }
+  return out;
+}
+function updateSrc(z) {
+  if (!z.pts.length) { z.src = { x: 0, y: 0, w: 0, h: 0 }; return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of polyline(z)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  z.src = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+function pieceSrcPath(c, z, open) { // chemin du contour source, en coordonnées image
+  c.beginPath();
+  polyline(z).forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y));
+  if (!open) c.closePath();
+}
+function pieceXf(z) {
+  const a = z.rot * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a), k = z.scale, fl = z.flip ? -1 : 1;
+  const scx = z.px, scy = z.py;
+  return {
+    fwd(x, y) { const lx = (x - scx) * fl * k, ly = (y - scy) * k; return [z.cx + lx * cos - ly * sin, z.cy + lx * sin + ly * cos]; },
+    inv(x, y) { const dx = x - z.cx, dy = y - z.cy; return [scx + fl * (dx * cos + dy * sin) / k, scy + (-dx * sin + dy * cos) / k]; },
+    // applique la transformation (image source → image destination) sur un contexte déjà à l'échelle s
+    apply(c, s) { c.translate(z.cx * s, z.cy * s); c.rotate(a); c.scale(fl * k * s, k * s); c.translate(-scx, -scy); },
+  };
+}
+
+// Distance exacte (en pixels du buffer) de chaque pixel intérieur au bord de la forme (transformée de distance euclidienne)
+function edt1d(f, n, d, v, zz) {
+  let k = 0; v[0] = 0; zz[0] = -Infinity; zz[1] = Infinity;
+  for (let q = 1; q < n; q++) {
+    let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+    while (s <= zz[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+    k++; v[k] = q; zz[k] = s; zz[k + 1] = Infinity;
+  }
+  k = 0;
+  for (let q = 0; q < n; q++) { while (zz[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+}
+function insideDistance(mask, w, h, inside = true) { // inside=false : distance des points extérieurs au contour
+  const INF = 1e20, n = Math.max(w, h), g = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = (mask[i * 4] >= 128) === inside ? INF : 0;
+  const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), zz = new Float64Array(n + 1);
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) f[y] = g[y * w + x];
+    edt1d(f, h, d, v, zz);
+    for (let y = 0; y < h; y++) g[y * w + x] = d[y];
+  }
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) f[x] = g[row + x];
+    edt1d(f, w, d, v, zz);
+    for (let x = 0; x < w; x++) g[row + x] = Math.max(0, Math.sqrt(d[x]) - 0.5);
+  }
+  return g;
+}
+// Flou quasi gaussien (3 passes de moyenne glissante) d'un champ Float32
+function blur1(g, w, h, r) {
+  const t = new Float32Array(g.length), div = 2 * r + 1;
+  for (let it = 0; it < 3; it++) {
+    for (let y = 0; y < h; y++) {
+      const o = y * w; let sum = 0;
+      for (let k = -r; k <= r; k++) sum += g[o + clamp(k, 0, w - 1)];
+      for (let x = 0; x < w; x++) { t[o + x] = sum / div; sum += g[o + Math.min(w - 1, x + r + 1)] - g[o + Math.max(0, x - r)]; }
+    }
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let k = -r; k <= r; k++) sum += t[clamp(k, 0, h - 1) * w + x];
+      for (let y = 0; y < h; y++) { g[y * w + x] = sum / div; sum += t[Math.min(h - 1, y + r + 1) * w + x] - t[Math.max(0, y - r) * w + x]; }
+    }
+  }
+}
+const SUBS = [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]], tmp3 = new Float64Array(3);
+function bilin1(g, w, h, x, y) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const xa = clamp(x0, 0, w - 1), xb = clamp(x0 + 1, 0, w - 1), ya = clamp(y0, 0, h - 1), yb = clamp(y0 + 1, 0, h - 1);
+  const top = g[ya * w + xa] + (g[ya * w + xb] - g[ya * w + xa]) * fx;
+  const bot = g[yb * w + xa] + (g[yb * w + xb] - g[yb * w + xa]) * fx;
+  return top + (bot - top) * fy;
+}
+const smooth01 = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+
+// Type de fondu effectivement utilisé : « raccord déformé » si la découpe est agrandie à peu près sur place
+function fadeMode(z) {
+  if (z.fade === 'warp' || z.fade === 'alpha') return z.fade;
+  const near = Math.hypot(z.cx - z.px, z.cy - z.py) < 0.35 * Math.min(z.src.w, z.src.h) * z.scale;
+  return z.scale >= 0.999 && near ? 'warp' : 'alpha';
+}
+
+function renderPiece(ctx, z, s) {
+  const cw = ctx.canvas.width, ch = ctx.canvas.height;
+  const r0 = z.src, k = z.scale, xf = pieceXf(z), mode = fadeMode(z), Fi = z.feather; // Fi : largeur du fondu (px image, côté destination)
+  // Raccord déformé : une partie du fondu peut déborder à l'extérieur du contour (Fout), le reste est à l'intérieur
+  const Fout = mode === 'warp' ? Fi * (z.spill ?? 50) / 100 : 0, eo = Fout / k + 2;
+
+  // Emprise de destination (coord. image)
+  const cs = [[r0.x - eo, r0.y - eo], [r0.x + r0.w + eo, r0.y - eo], [r0.x - eo, r0.y + r0.h + eo], [r0.x + r0.w + eo, r0.y + r0.h + eo]].map(([x, y]) => xf.fwd(x, y));
+  const dx0 = Math.min(...cs.map(c => c[0])), dy0 = Math.min(...cs.map(c => c[1]));
+  const dx1 = Math.max(...cs.map(c => c[0])), dy1 = Math.max(...cs.map(c => c[1]));
+  // Région source : la forme d'origine, + la zone de destination en mode raccord (on y lit le fond pour s'y raccorder)
+  let ix0 = r0.x - eo, iy0 = r0.y - eo, ix1 = r0.x + r0.w + eo, iy1 = r0.y + r0.h + eo;
+  if (mode === 'warp') { ix0 = Math.min(ix0, dx0); iy0 = Math.min(iy0, dy0); ix1 = Math.max(ix1, dx1); iy1 = Math.max(iy1, dy1); }
+  const { ss, useCanvas } = pickScale(z, s, k, ix0, iy0, ix1, iy1);
+  const S = sourceAt(ctx, z, s, ss, useCanvas, ix0 - 2 / ss, iy0 - 2 / ss, ix1 + 2 / ss, iy1 + 2 / ss);
+  const src = S.id, qw = src.width, qh = src.height, qx0 = S.x0, qy0 = S.y0;
+
+  // Masque net de la forme + distance de chaque point intérieur au contour
+  if (mcan.width < qw || mcan.height < qh) { mcan.width = Math.max(mcan.width, qw); mcan.height = Math.max(mcan.height, qh); }
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  mctx.fillStyle = '#000'; mctx.fillRect(0, 0, qw, qh);
+  mctx.setTransform(ss, 0, 0, ss, -qx0, -qy0);
+  mctx.fillStyle = '#fff'; pieceSrcPath(mctx, z); mctx.fill();
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  const md = mctx.getImageData(0, 0, qw, qh).data;
+  // Distance signée au contour : positive à l'intérieur, négative à l'extérieur
+  let dist = null, Wf = null;
+  if (Fi > 0) {
+    dist = insideDistance(md, qw, qh, true);
+    if (mode === 'warp') {
+      const out = insideDistance(md, qw, qh, false);
+      for (let i = 0; i < dist.length; i++) dist[i] -= out[i];
+      // Champ de fondu parfaitement lisse : contour décalé (bande entre -Fout et Fi-Fout) puis flou gaussien.
+      // Contrairement à la distance au contour, il ne forme aucune arête, donc aucun pli dans la déformation.
+      const shift = (Fi / 2 - Fout) * ss / k, sig = Fi / 4 * ss / k;
+      Wf = new Float32Array(qw * qh);
+      for (let i = 0; i < Wf.length; i++) Wf[i] = dist[i] > shift ? 1 : 0;
+      if (sig >= 0.5) blur1(Wf, qw, qh, Math.max(1, Math.round(Math.sqrt(sig * sig + 0.25) - 0.5)));
+    }
+  }
+  const distToDest = k / ss; // px du buffer source → px image côté destination
+
+  const bx = clamp(Math.floor(dx0 * s), 0, cw), by = clamp(Math.floor(dy0 * s), 0, ch);
+  const bw = clamp(Math.ceil(dx1 * s), 0, cw) - bx, bh = clamp(Math.ceil(dy1 * s), 0, ch) - by;
+  if (bw < 1 || bh < 1) return;
+
+  const base = ctx.getImageData(bx, by, bw, bh);
+  const proc = new ImageData(new Uint8ClampedArray(base.data), bw, bh);
+  const alpha = new Float32Array(bw * bh);
+  const sd = src.data, pd = proc.data, mv = [0];
+  const a = z.rot * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a), fl = z.flip ? -1 : 1;
+  const scx = z.px * ss - qx0 - 0.5, scy = z.py * ss - qy0 - 0.5;
+  const Cx = z.cx * s, Cy = z.cy * s, fr = ss / (s * k), id = ss / s;
+  for (let j = 0; j < bh; j++) {
+    const py = by + j + 0.5, dy = py - Cy;
+    for (let i = 0; i < bw; i++) {
+      const px = bx + i + 0.5, dx = px - Cx;
+      const u = scx + fl * (dx * cos + dy * sin) * fr, v = scy + (-dx * sin + dy * cos) * fr;
+      if (u < -1 || v < -1 || u > qw || v > qh) continue;
+      bilinear(md, qw, qh, u, v, mv, 0, 1);
+      const cov = mv[0] / 255;
+      let dImg, w; // dImg : profondeur dans la découpe (px image, négative à l'extérieur)
+      if (dist) {
+        dImg = bilin1(dist, qw, qh, u, v) * distToDest;
+        if (dImg <= -Fout && cov <= 0.002) continue;
+        w = Wf ? clamp((bilin1(Wf, qw, qh, u, v) - 0.02) / 0.96, 0, 1) : smooth01((dImg + Fout) / Fi);
+      } else {
+        if (cov <= 0.002) continue;
+        dImg = Infinity; w = 1;
+      }
+      const p = j * bw + i;
+      if (mode === 'warp') {
+        // Raccord déformé : près du contour, on lit progressivement le fond à sa place (agrandissement → ×1)
+        if (w > 0 && w < 1) { // anneau de transition (image comprimée) : 4 sous-échantillons, sans crénelage
+          let r = 0, g = 0, b = 0;
+          for (const [ox, oy] of SUBS) {
+            const qx = px + ox, qy = py + oy, ddx = qx - Cx, ddy = qy - Cy;
+            const su = scx + fl * (ddx * cos + ddy * sin) * fr, sv = scy + (-ddx * sin + ddy * cos) * fr;
+            const iu = qx * id - qx0 - 0.5, iv = qy * id - qy0 - 0.5;
+            bicubic(sd, qw, qh, iu + (su - iu) * w, iv + (sv - iv) * w, tmp3, 0);
+            r += tmp3[0]; g += tmp3[1]; b += tmp3[2];
+          }
+          const o = p * 4; pd[o] = r / 4; pd[o + 1] = g / 4; pd[o + 2] = b / 4;
+        } else {
+          const iu = px * id - qx0 - 0.5, iv = py * id - qy0 - 0.5;
+          bicubic(sd, qw, qh, iu + (u - iu) * w, iv + (v - iv) * w, pd, p * 4);
+        }
+        alpha[p] = (Fout > 0 ? 1 : cov) * clamp((dImg + Fout) * s / 2, 0, 1); // 2 px au bord extérieur (couleurs déjà identiques)
+      } else {
+        bicubic(sd, qw, qh, u, v, pd, p * 4);
+        alpha[p] = cov * w; // transparence vers l'intérieur uniquement : pas de halo, pas de dédoublement
+      }
+    }
+  }
+  applyFilters(proc, z.f, s);
+  const bd = base.data;
+  for (let p = 0; p < alpha.length; p++) {
+    const al = alpha[p];
+    if (al <= 0) continue;
+    const o = p * 4;
+    if (al >= 1) { bd[o] = pd[o]; bd[o + 1] = pd[o + 1]; bd[o + 2] = pd[o + 2]; }
+    else { bd[o] += (pd[o] - bd[o]) * al; bd[o + 1] += (pd[o + 1] - bd[o + 1]) * al; bd[o + 2] += (pd[o + 2] - bd[o + 2]) * al; }
+  }
+  ctx.putImageData(base, bx, by);
+
+  if (z.border > 0) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    xf.apply(ctx, s);
+    pieceSrcPath(ctx, z);
+    ctx.restore();
+    ctx.save();
+    ctx.lineWidth = z.border * s; ctx.lineJoin = 'round'; ctx.strokeStyle = z.borderColor;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ---------- Filtres (calcul pixel par pixel, rien d'externe) ----------
+function applyFilters(id, f, s) {
+  if (isNeutral(f)) return;
+  const d = id.data;
+  if (f.blur > 0) {
+    const r = Math.round(f.blur * s / 2);
+    if (r >= 1) boxBlur(d, id.width, id.height, r);
+  }
+  if (f.sharp > 0) { // masque flou (unsharp mask) : renforce les détails fins
+    const bl = new Uint8ClampedArray(d);
+    boxBlur(bl, id.width, id.height, 1);
+    const amt = f.sharp / 100 * 1.5;
+    for (let o = 0; o < d.length; o += 4) {
+      d[o] += (d[o] - bl[o]) * amt; d[o + 1] += (d[o + 1] - bl[o + 1]) * amt; d[o + 2] += (d[o + 2] - bl[o + 2]) * amt;
+    }
+  }
+  if (!(f.bright || f.contrast || f.sat || f.warm || f.bw || f.sepia)) return;
+  const B = f.bright * 1.28;
+  const C = f.contrast * 2, cf = (259 * (C + 255)) / (255 * (259 - C));
+  const S = 1 + f.sat / 100, Wm = f.warm * 0.4, bw = f.bw / 100, sp = f.sepia / 100;
+  for (let o = 0; o < d.length; o += 4) {
+    let r = d[o], g = d[o + 1], b = d[o + 2];
+    if (B) { r += B; g += B; b += B; }
+    if (C) { r = cf * (r - 128) + 128; g = cf * (g - 128) + 128; b = cf * (b - 128) + 128; }
+    if (S !== 1) { const l = .2126 * r + .7152 * g + .0722 * b; r = l + (r - l) * S; g = l + (g - l) * S; b = l + (b - l) * S; }
+    if (Wm) { r += Wm; b -= Wm; }
+    if (bw) { const l = .2126 * r + .7152 * g + .0722 * b; r += (l - r) * bw; g += (l - g) * bw; b += (l - b) * bw; }
+    if (sp) {
+      const sr = .393 * r + .769 * g + .189 * b, sg = .349 * r + .686 * g + .168 * b, sb = .272 * r + .534 * g + .131 * b;
+      r += (sr - r) * sp; g += (sg - g) * sp; b += (sb - b) * sp;
+    }
+    d[o] = r; d[o + 1] = g; d[o + 2] = b;
+  }
+}
+
+function blurPass(src, dst, w, h, r, horiz) {
+  const len = horiz ? w : h, lines = horiz ? h : w, step = horiz ? 4 : w * 4, div = 2 * r + 1;
+  for (let l = 0; l < lines; l++) {
+    const start = horiz ? l * w * 4 : l * 4;
+    for (let c = 0; c < 3; c++) {
+      let sum = 0;
+      for (let k = -r; k <= r; k++) sum += src[start + clamp(k, 0, len - 1) * step + c];
+      for (let i = 0; i < len; i++) {
+        dst[start + i * step + c] = sum / div;
+        sum += src[start + Math.min(len - 1, i + r + 1) * step + c] - src[start + Math.max(0, i - r) * step + c];
+      }
+    }
+    for (let i = 0; i < len; i++) dst[start + i * step + 3] = src[start + i * step + 3];
+  }
+}
+function boxBlur(d, w, h, r) {
+  const t = new Uint8ClampedArray(d.length);
+  for (let it = 0; it < 3; it++) { blurPass(d, t, w, h, r, true); blurPass(t, d, w, h, r, false); }
+}
+
+// ---------- Contours (surcouche, jamais exportée) ----------
+function zonePath(c, z, s) {
+  c.beginPath();
+  if (z.shape === 'ellipse') c.ellipse((z.x + z.w / 2) * s, (z.y + z.h / 2) * s, z.w * s / 2, z.h * s / 2, 0, 0, Math.PI * 2);
+  else c.rect(z.x * s, z.y * s, z.w * s, z.h * s);
+}
+function strokeOutline(sel, k, dashed) {
+  octx.setLineDash(dashed ? [5 * k, 4 * k] : []);
+  octx.lineWidth = 3 * k; octx.strokeStyle = 'rgba(0,0,0,.55)'; octx.stroke();
+  octx.lineWidth = 1.2 * k; octx.strokeStyle = sel ? '#f2b84b' : 'rgba(255,255,255,.75)'; octx.stroke();
+}
+function drawOverlay() {
+  octx.setTransform(1, 0, 0, 1, 0, 0);
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (state.showOriginal || (state.hideGuides && !poly && !state.drawMode)) return;
+  const s = state.s, k = s / state.css; // pixels canvas par pixel CSS
+  for (const z of state.layers) {
+    const sel = z.id === state.selected;
+    if (z === poly) { // tracé « point par point » en cours
+      octx.save(); octx.scale(s, s); pieceSrcPath(octx, z, true);
+      if (state.cursor) octx.lineTo(state.cursor.x, state.cursor.y);
+      octx.restore();
+      strokeOutline(true, k, false);
+      z.pts.forEach(([x, y], i) => dot(x * s, y * s, k, i === 0 && z.pts.length >= 3));
+      continue;
+    }
+    if (isPiece(z)) {
+      if (sel && drag?.type !== 'new') { // emplacement d'origine (fantôme)
+        octx.save(); octx.scale(s, s); pieceSrcPath(octx, z); octx.restore();
+        octx.setLineDash([2 * k, 4 * k]); octx.lineWidth = 1 * k; octx.strokeStyle = 'rgba(255,255,255,.5)'; octx.stroke();
+      }
+      octx.save(); pieceXf(z).apply(octx, s); pieceSrcPath(octx, z); octx.restore();
+    } else zonePath(octx, z, s);
+    strokeOutline(sel, k, !sel);
+    if (sel) {
+      octx.setLineDash([]);
+      for (const [hx, hy] of handlePoints(z)) {
+        const hs = (touchUI() ? 16 : 9) * k;
+        octx.fillStyle = '#f2b84b'; octx.strokeStyle = '#000'; octx.lineWidth = k;
+        octx.fillRect(hx * s - hs / 2, hy * s - hs / 2, hs, hs); octx.strokeRect(hx * s - hs / 2, hy * s - hs / 2, hs, hs);
+      }
+      if (isPiece(z) && drag?.type !== 'new') { // points du contour, éditables
+        const xf = pieceXf(z);
+        const av = state.activeVertex?.id === z.id ? state.activeVertex.i : -1;
+        z.pts.forEach(([x, y], i) => { const [X, Y] = xf.fwd(x, y); dot(X * s, Y * s, k, i === av); });
+      }
+    }
+  }
+}
+function dot(x, y, k, big) {
+  octx.setLineDash([]);
+  const r = (big ? 6 : 4.5) * (touchUI() ? 1.6 : 1);
+  octx.beginPath(); octx.arc(x, y, r * k, 0, Math.PI * 2);
+  octx.fillStyle = big ? '#f2b84b' : '#fff'; octx.fill();
+  octx.lineWidth = 1.5 * k; octx.strokeStyle = '#000'; octx.stroke();
+}
+function handlePoints(z) {
+  if (isPiece(z)) { // carrés de taille, un peu à l'extérieur pour ne pas gêner les points
+    const r = z.src, e = (touchUI() ? 26 : 14) / (state.css * z.scale), xf = pieceXf(z);
+    return [[r.x - e, r.y - e], [r.x + r.w + e, r.y - e], [r.x - e, r.y + r.h + e], [r.x + r.w + e, r.y + r.h + e]].map(([x, y], i) => [...xf.fwd(x, y), 'c' + i]);
+  }
+  return [[z.x, z.y, 'nw'], [z.x + z.w, z.y, 'ne'], [z.x, z.y + z.h, 'sw'], [z.x + z.w, z.y + z.h, 'se']];
+}
+
+// ---------- Souris / trackpad ----------
+function toImg(e) {
+  const r = overlay.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * state.W, y: (e.clientY - r.top) / r.height * state.H };
+}
+const selLayer = () => state.layers.find(z => z.id === state.selected);
+function hitHandle(z, p) {
+  const tol = grip(9) / state.css;
+  for (const [hx, hy, name] of handlePoints(z)) if (Math.abs(p.x - hx) <= tol && Math.abs(p.y - hy) <= tol) return name;
+  return null;
+}
+function inPolygon(pts, x, y) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function inShape(shape, r, pts, x, y) {
+  if (shape === 'ellipse') {
+    const nx = (x - r.x - r.w / 2) / (r.w / 2), ny = (y - r.y - r.h / 2) / (r.h / 2);
+    return nx * nx + ny * ny <= 1;
+  }
+  if (shape === 'lasso') return inPolygon(pts, x, y);
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
+function inLayer(z, p) {
+  if (isPiece(z)) { const [x, y] = pieceXf(z).inv(p.x, p.y); return inPolygon(polyline(z), x, y); }
+  return inShape(z.shape, z, null, p.x, p.y);
+}
+function rectFrom(ax, ay, bx, by, square) {
+  bx = clamp(bx, 0, state.W); by = clamp(by, 0, state.H);
+  if (square) {
+    const size = Math.min(Math.abs(bx - ax), Math.abs(by - ay));
+    bx = ax + Math.sign(bx - ax || 1) * size; by = ay + Math.sign(by - ay || 1) * size;
+  }
+  const x = Math.round(Math.min(ax, bx)), y = Math.round(Math.min(ay, by));
+  return { x, y, w: Math.round(Math.max(ax, bx)) - x, h: Math.round(Math.max(ay, by)) - y };
+}
+function centerPiece(z) { z.px = z.cx = z.src.x + z.src.w / 2; z.py = z.cy = z.src.y + z.src.h / 2; }
+// largeur de fondu par défaut : 50 % de la plus petite dimension de la découpe
+function defaultFeather(z) { z.feather = Math.max(2, Math.round(Math.min(z.src.w, z.src.h) * 0.5)); }
+
+let drag = null;
+let poly = null;            // découpe « Points » en cours de tracé
+let tap = null;             // appui en cours pendant le tracé « Points » : tap = poser un point, glisser = déplacer la vue
+const undoStack = [];
+const snapshot = () => JSON.stringify({ layers: state.layers, global: state.global, selected: state.selected });
+function pushUndo(snap) { undoStack.push(snap || snapshot()); if (undoStack.length > 60) undoStack.shift(); }
+function undo() {
+  if (poly) { cancelPoly(); return; }
+  const snap = undoStack.pop();
+  if (!snap) { flash('Rien à annuler'); return; }
+  const o = JSON.parse(snap);
+  state.layers = o.layers; state.global = o.global; state.selected = o.selected; state.dirty = true;
+  state.activeVertex = null;
+  refreshUI(); scheduleRender();
+}
+
+// Prises plus grandes au doigt
+const touchUI = () => state.touch || matchMedia('(pointer: coarse)').matches;
+const grip = px => px * (touchUI() ? 2.3 : 1);
+
+const cssDist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) * state.css;
+const clampPt = ([x, y]) => [clamp(x, 0, state.W), clamp(y, 0, state.H)];
+function segDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+  const t = L ? clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L, 0, 1) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+// Simplifie un tracé à main levée (Ramer-Douglas-Peucker)
+function rdp(pts, eps) {
+  if (pts.length < 3) return pts.slice();
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    let md = 0, mi = -1;
+    for (let i = a + 1; i < b; i++) { const d = segDist(pts[i], pts[a], pts[b]); if (d > md) { md = d; mi = i; } }
+    if (md > eps) { keep[mi] = 1; stack.push([a, mi], [mi, b]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+function hitVertex(z, p) {
+  const xf = pieceXf(z);
+  let best = -1, bd = grip(8);
+  z.pts.forEach(([x, y], i) => { const d = cssDist(xf.fwd(x, y), [p.x, p.y]); if (d <= bd) { bd = d; best = i; } });
+  return best;
+}
+function hitSegment(z, p) {
+  const q = pieceXf(z).inv(p.x, p.y), L = polyline(z), n = L.length;
+  let best = -1, bd = grip(7) / (state.css * z.scale);
+  for (let j = 0; j < n; j++) { const d = segDist(q, L[j], L[(j + 1) % n]); if (d <= bd) { bd = d; best = j; } }
+  if (best < 0) return null;
+  return { i: z.smooth && z.pts.length >= 3 ? Math.floor(best / SUB) : best, q };
+}
+function removeVertex(z, i) {
+  if (z.pts.length <= 3) { flash('Un contour garde au moins 3 points'); return; }
+  pushUndo();
+  z.pts.splice(i, 1); updateSrc(z);
+  state.activeVertex = null; state.dirty = true;
+  scheduleRender();
+}
+function flash(msg) { $('status').textContent = msg; clearTimeout(flash.t); flash.t = setTimeout(() => $('status').textContent = '', 1800); }
+
+// --- Tracé « Points » ---
+function addPolyPoint(p) {
+  const pt = clampPt([p.x, p.y]);
+  if (poly.pts.length >= 3 && cssDist(pt, poly.pts[0]) <= grip(10)) { finishPoly(); return; }
+  if (poly.pts.length && cssDist(pt, poly.pts[poly.pts.length - 1]) < 4) return;
+  poly.pts.push(pt); updateSrc(poly); centerPiece(poly);
+  scheduleRender();
+}
+function removeLastPolyPoint() { if (poly && poly.pts.length) { poly.pts.pop(); updateSrc(poly); scheduleRender(); } }
+function finishPoly() {
+  const z = poly;
+  poly = null; tap = null; state.drawMode = null; state.cursor = null;
+  if (!z) return;
+  updateSrc(z);
+  if (z.pts.length < 3 || z.src.w * state.css < 5 || z.src.h * state.css < 5) {
+    state.layers = state.layers.filter(q => q !== z); state.selected = 'global'; undoStack.pop();
+    if (z.pts.length) flash('Il faut au moins 3 points');
+  } else { centerPiece(z); defaultFeather(z); }
+  refreshUI(); scheduleRender();
+}
+function cancelPoly() {
+  if (!poly) return;
+  state.layers = state.layers.filter(q => q !== poly);
+  poly = null; tap = null; state.drawMode = null; state.cursor = null; state.selected = 'global';
+  undoStack.pop();
+  refreshUI(); scheduleRender();
+}
+
+// Annule une manipulation commencée (ex. : un 2e doigt se pose pour zoomer)
+function abortDrag() {
+  if (!drag) return;
+  clearTimeout(drag.lp);
+  const d = drag; drag = null;
+  if (d.type === 'new') { state.layers = state.layers.filter(q => q !== d.zone); undoStack.pop(); state.selected = 'global'; }
+  else if (d.changed) undo();
+  scheduleRender();
+}
+
+// --- Vue : zoom et déplacement (2 doigts, pincement du trackpad, molette, boutons) ---
+const touches = new Map();
+let pinch = null;
+stage.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch' || !state.img) return;
+  touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (touches.size === 2) {
+    abortDrag(); tap = null;
+    const [a, b] = [...touches.values()];
+    pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], zoom: vw.zoom, tx: vw.tx, ty: vw.ty };
+  }
+}, true);
+stage.addEventListener('pointermove', e => {
+  if (!touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (!pinch || touches.size < 2) return;
+  const [a, b] = [...touches.values()];
+  const d = Math.hypot(a[0] - b[0], a[1] - b[1]), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const r = stage.getBoundingClientRect();
+  const zoom = clamp(pinch.zoom * d / pinch.d, 1, MAXZOOM), f = zoom / pinch.zoom;
+  const sx = pinch.m[0] - r.left, sy = pinch.m[1] - r.top;
+  vw.zoom = zoom;
+  vw.tx = sx - (sx - pinch.tx) * f + (m[0] - pinch.m[0]);
+  vw.ty = sy - (sy - pinch.ty) * f + (m[1] - pinch.m[1]);
+  applyView(false);
+}, true);
+const endTouch = e => {
+  if (!touches.delete(e.pointerId)) return;
+  if (pinch && touches.size < 2) { pinch = null; applyView(true); }
+};
+stage.addEventListener('pointerup', endTouch, true);
+stage.addEventListener('pointercancel', endTouch, true);
+stage.addEventListener('contextmenu', e => e.preventDefault());
+stage.addEventListener('wheel', e => {
+  if (!state.img) return;
+  e.preventDefault();
+  const r = stage.getBoundingClientRect();
+  if (e.ctrlKey || e.metaKey) zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.01)); // pincement trackpad
+  else { vw.tx -= e.deltaX; vw.ty -= e.deltaY; applyView(false); }
+}, { passive: false });
+
+// --- Édition au doigt / à la souris ---
+overlay.addEventListener('pointerdown', e => {
+  if (!state.img || state.showOriginal || pinch) return;
+  state.touch = e.pointerType === 'touch';
+  const p = toImg(e), start = [e.clientX, e.clientY];
+  try { overlay.setPointerCapture(e.pointerId); } catch (_) {}
+
+  if (state.drawMode === 'piece-poly' && !poly) {
+    pushUndo();
+    const z = newPiece('poly', p.x, p.y); z.pts = []; updateSrc(z);
+    state.layers.push(z); state.selected = z.id; poly = z;
+    refreshUI();
+  }
+  if (poly) { tap = { id: e.pointerId, start, p, vt: [vw.tx, vw.ty] }; return; }
+
+  if (state.drawMode) {
+    const [kind, shape] = state.drawMode.split('-');
+    const [x, y] = clampPt([p.x, p.y]);
+    pushUndo();
+    const z = kind === 'piece' ? newPiece(shape, x, y) : newZone(shape, Math.round(x), Math.round(y));
+    state.layers.push(z); state.selected = z.id;
+    drag = { type: 'new', zone: z, ax: x, ay: y, start0: start };
+    return;
+  }
+
+  const sel = selLayer();
+  if (sel && isPiece(sel)) {
+    const vi = hitVertex(sel, p);
+    if (vi >= 0) {
+      if (e.altKey) { removeVertex(sel, vi); refreshUI(); return; }
+      state.activeVertex = { id: sel.id, i: vi };
+      drag = { type: 'vertex', zone: sel, i: vi, snap: snapshot(), start0: start };
+      if (state.touch) drag.lp = setTimeout(() => { // appui long sur un point = le supprimer
+        if (drag && drag.type === 'vertex' && !drag.moved) { const z = drag.zone, i = drag.i; drag = null; removeVertex(z, i); navigator.vibrate?.(25); refreshUI(); }
+      }, 550);
+      drawOverlay();
+      return;
+    }
+  }
+  const h = sel && hitHandle(sel, p);
+  if (h) { drag = { type: 'resize', zone: sel, handle: h, orig: structuredClone(sel), start: p, snap: snapshot(), start0: start }; return; }
+  if (sel && isPiece(sel)) {
+    const seg = hitSegment(sel, p);
+    if (seg) { // appui/glisser sur une ligne = nouveau point à cet endroit
+      pushUndo();
+      sel.pts.splice(seg.i + 1, 0, clampPt(seg.q)); updateSrc(sel);
+      state.activeVertex = { id: sel.id, i: seg.i + 1 };
+      drag = { type: 'vertex', zone: sel, i: seg.i + 1, changed: true, moved: true, start0: start };
+      state.dirty = true; scheduleRender();
+      return;
+    }
+  }
+  const z = [...state.layers].reverse().find(z => z.visible && inLayer(z, p));
+  if (z) {
+    if (state.selected !== z.id) state.activeVertex = null;
+    state.selected = z.id;
+    drag = { type: !isPiece(z) && e.altKey && z.zoom > 1 ? 'pan' : 'move', zone: z, orig: structuredClone(z), start: p, snap: snapshot(), start0: start };
+    refreshUI();
+  } else {
+    drag = { type: 'view', start0: start, vt: [vw.tx, vw.ty] }; // fond : glisser = déplacer la vue, simple appui = désélectionner
+  }
+});
+
+overlay.addEventListener('dblclick', e => {
+  if (poly) { finishPoly(); return; }
+  const sel = selLayer();
+  if (!sel || !isPiece(sel)) return;
+  const vi = hitVertex(sel, toImg(e));
+  if (vi >= 0) { removeVertex(sel, vi); refreshUI(); }
+});
+
+overlay.addEventListener('pointermove', e => {
+  if (!state.img || pinch) return;
+  const p = toImg(e);
+  if (poly) {
+    if (tap && tap.id === e.pointerId) {
+      const dx = e.clientX - tap.start[0], dy = e.clientY - tap.start[1];
+      if (tap.pan || Math.hypot(dx, dy) > 10) { tap.pan = true; vw.tx = tap.vt[0] + dx; vw.ty = tap.vt[1] + dy; applyView(false); }
+    }
+    if (e.pointerType !== 'touch') { state.cursor = p; drawOverlay(); }
+    return;
+  }
+  if (!drag) {
+    let cur = state.drawMode ? 'crosshair' : 'default';
+    if (!state.drawMode) {
+      const sel = selLayer();
+      if (sel && isPiece(sel) && hitVertex(sel, p) >= 0) cur = 'grab';
+      else if (sel && hitHandle(sel, p)) cur = 'nwse-resize';
+      else if (sel && isPiece(sel) && hitSegment(sel, p)) cur = 'copy';
+      else if (state.layers.some(z => z.visible && inLayer(z, p))) cur = e.altKey ? 'grab' : 'move';
+      else if (vw.zoom > 1) cur = 'grab';
+    }
+    overlay.style.cursor = cur;
+    return;
+  }
+  if (!drag.moved) { // zone morte au doigt : évite de déplacer quelque chose par erreur
+    if (e.pointerType === 'touch' && Math.hypot(e.clientX - drag.start0[0], e.clientY - drag.start0[1]) < 6) return;
+    drag.moved = true; clearTimeout(drag.lp);
+  }
+  if (drag.type === 'view') {
+    vw.tx = drag.vt[0] + e.clientX - drag.start0[0]; vw.ty = drag.vt[1] + e.clientY - drag.start0[1];
+    applyView(false);
+    return;
+  }
+  if (drag.snap) { pushUndo(drag.snap); drag.snap = null; drag.changed = true; }
+  const z = drag.zone, o = drag.orig;
+  if (drag.type === 'new') {
+    if (z.shape === 'lasso') {
+      const pt = clampPt([p.x, p.y]);
+      if (cssDist(pt, z.pts[z.pts.length - 1]) >= 2) { z.pts.push(pt); updateSrc(z); }
+    } else if (isPiece(z)) {
+      const r = rectFrom(drag.ax, drag.ay, p.x, p.y, e.shiftKey);
+      z.pts = z.shape === 'ellipse' ? ellipsePts(r) : rectPts(r);
+      z.smooth = z.shape === 'ellipse';
+      updateSrc(z);
+    } else Object.assign(z, rectFrom(drag.ax, drag.ay, p.x, p.y, e.shiftKey));
+    if (isPiece(z)) centerPiece(z);
+  } else if (drag.type === 'vertex') {
+    z.pts[drag.i] = clampPt(pieceXf(z).inv(p.x, p.y));
+    updateSrc(z);
+  } else if (drag.type === 'move') {
+    const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+    if (isPiece(z)) { z.cx = clamp(o.cx + dx, 0, state.W); z.cy = clamp(o.cy + dy, 0, state.H); }
+    else { z.x = Math.round(clamp(o.x + dx, 0, state.W - z.w)); z.y = Math.round(clamp(o.y + dy, 0, state.H - z.h)); }
+  } else if (drag.type === 'pan') {
+    z.ox = Math.round(o.ox - (p.x - drag.start.x) / z.zoom);
+    z.oy = Math.round(o.oy - (p.y - drag.start.y) / z.zoom);
+    syncLayerSliders();
+  } else if (drag.type === 'resize') {
+    if (isPiece(z)) { // redimensionnement proportionnel autour du centre
+      const d0 = Math.hypot(drag.start.x - o.cx, drag.start.y - o.cy) || 1;
+      z.scale = clamp(o.scale * Math.hypot(p.x - o.cx, p.y - o.cy) / d0, 0.05, 10);
+      syncLayerSliders();
+    } else {
+      const ax = drag.handle.includes('w') ? o.x + o.w : o.x;
+      const ay = drag.handle.includes('n') ? o.y + o.h : o.y;
+      const r = rectFrom(ax, ay, p.x, p.y, e.shiftKey);
+      if (r.w >= 4 && r.h >= 4) Object.assign(z, r);
+    }
+  }
+  state.dirty = true;
+  scheduleRender();
+});
+function endDrag(e) {
+  if (poly) {
+    if (tap && tap.id === e.pointerId) {
+      const t = tap; tap = null;
+      if (e.type === 'pointerup' && !t.pan) addPolyPoint(t.p);
+      else applyView(true);
+    }
+    return;
+  }
+  if (!drag) return;
+  clearTimeout(drag.lp);
+  if (drag.type === 'view') {
+    if (!drag.moved) { state.selected = 'global'; state.activeVertex = null; refreshUI(); }
+    drag = null; applyView(true);
+    return;
+  }
+  if (drag.type === 'new') {
+    const z = drag.zone;
+    if (isPiece(z) && z.shape === 'lasso' && z.pts.length >= 3) { // main levée → quelques points propres, lissés
+      const pts = rdp(z.pts, 2.5 / state.css);
+      if (pts.length > 3 && cssDist(pts[0], pts[pts.length - 1]) < 6) pts.pop();
+      z.pts = pts; z.smooth = true;
+      updateSrc(z); centerPiece(z);
+    }
+    if (isPiece(z)) defaultFeather(z);
+    const r = isPiece(z) ? z.src : z;
+    const tooSmall = r.w * state.css < 5 || r.h * state.css < 5 || (isPiece(z) && z.pts.length < 3);
+    if (tooSmall) { state.layers = state.layers.filter(q => q !== z); state.selected = 'global'; undoStack.pop(); }
+    state.drawMode = null;
+  }
+  drag = null;
+  refreshUI(); scheduleRender();
+}
+overlay.addEventListener('pointerup', endDrag);
+overlay.addEventListener('pointercancel', endDrag);
+
+// ---------- Boutons ----------
+const DRAW_BUTTONS = { addPieceLasso: 'piece-lasso', addPiecePoly: 'piece-poly', addPieceRect: 'piece-rect', addPieceEllipse: 'piece-ellipse', addRect: 'zone-rect', addEllipse: 'zone-ellipse' };
+for (const [id, mode] of Object.entries(DRAW_BUTTONS)) $(id).onclick = () => { const was = state.drawMode; if (poly) cancelPoly(); state.drawMode = was === mode ? null : mode; refreshUI(); };
+
+$('btnUndo').onclick = undo;
+$('zoomIn').onclick = () => zoomCenter(1.6);
+$('zoomOut').onclick = () => zoomCenter(1 / 1.6);
+$('zoomFit').onclick = fitView;
+$('fbClose').onclick = finishPoly;
+$('fbBack').onclick = removeLastPolyPoint;
+$('fbCancel').onclick = cancelPoly;
+function toggleGuides() { state.hideGuides = !state.hideGuides; $('btnGuides').classList.toggle('active', !!state.hideGuides); drawOverlay(); }
+$('btnGuides').onclick = toggleGuides;
+const btnOrig = $('btnOrig');
+const setOrig = v => { if (state.img && state.showOriginal !== v) { state.showOriginal = v; btnOrig.classList.toggle('active', v); scheduleRender(); } };
+btnOrig.addEventListener('pointerdown', () => setOrig(true));
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btnOrig.addEventListener(ev, () => setOrig(false)));
+
+const typing = () => ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName) && document.activeElement.type !== 'range';
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (!typing()) { e.preventDefault(); undo(); }
+    return;
+  }
+  if (typing()) return;
+  if (poly) { // tracé « Points » en cours
+    if (e.key === 'Escape') cancelPoly();
+    else if (e.key === 'Enter') finishPoly();
+    else if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      removeLastPolyPoint();
+    }
+    return;
+  }
+  if (e.key === 'Escape' && state.drawMode) { state.drawMode = null; refreshUI(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selLayer()) { e.preventDefault(); deleteLayer(selLayer()); }
+  else if (e.key.toLowerCase() === 'o' && !e.metaKey && !e.ctrlKey) setOrig(true);
+  else if (e.key.toLowerCase() === 'h' && !e.metaKey && !e.ctrlKey) toggleGuides();
+  else if ((e.key === '+' || e.key === '=') && !e.metaKey && !e.ctrlKey) zoomCenter(1.6);
+  else if (e.key === '-' && !e.metaKey && !e.ctrlKey) zoomCenter(1 / 1.6);
+  else if (e.key === '0' && !e.metaKey && !e.ctrlKey) fitView();
+});
+document.addEventListener('keyup', e => { if (e.key.toLowerCase() === 'o') setOrig(false); });
+
+function deleteLayer(z) {
+  pushUndo();
+  state.layers = state.layers.filter(q => q !== z);
+  state.selected = 'global'; state.dirty = true;
+  refreshUI(); scheduleRender();
+}
+function duplicateLayer(z) {
+  pushUndo();
+  const c = structuredClone(z); c.id = nextId++;
+  const off = 30 / state.css;
+  if (isPiece(c)) { c.cx = clamp(c.cx + off, 0, state.W); c.cy = clamp(c.cy + off, 0, state.H); }
+  else { c.x = Math.round(clamp(c.x + off, 0, state.W - c.w)); c.y = Math.round(clamp(c.y + off, 0, state.H - c.h)); }
+  state.layers.push(c); state.selected = c.id; state.dirty = true;
+  refreshUI(); scheduleRender();
+}
+
+$('resetFilters').onclick = () => {
+  const t = state.selected === 'global' ? state.global : selLayer()?.f;
+  if (!t) return;
+  pushUndo();
+  Object.assign(t, newFilters());
+  refreshUI(); scheduleRender();
+};
+
+$('btnExport').onclick = () => {
+  if (!state.img) return;
+  const fmt = $('fmt').value;
+  $('status').textContent = 'Export en pleine résolution…';
+  setTimeout(() => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = state.W; c.height = state.H;
+      renderTo(c.getContext('2d', { willReadFrequently: true }), 1, false);
+      c.toBlob(blob => {
+        if (!blob) { $('status').textContent = ''; alert("L'export a échoué (image trop grande pour ce navigateur ?)."); return; }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${state.name}-retouche.${fmt === 'jpeg' ? 'jpg' : 'png'}`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+        state.dirty = false;
+        $('status').textContent = 'Image enregistrée dans vos Téléchargements';
+        setTimeout(() => $('status').textContent = '', 2500);
+      }, fmt === 'jpeg' ? 'image/jpeg' : 'image/png', 0.95);
+    } catch (err) { $('status').textContent = ''; alert('Erreur pendant l\'export : ' + err.message); }
+  }, 30);
+};
+
+// ---------- Panneau ----------
+function el(tag, cls, html) { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
+const layerLabel = z => {
+  const same = state.layers.filter(q => isPiece(q) === isPiece(z));
+  return `${isPiece(z) ? 'Découpe' : 'Zone'} ${same.indexOf(z) + 1}`;
+};
+const SHAPE_NAMES = { rect: 'rect.', ellipse: 'ovale', lasso: 'lasso', poly: 'points' };
+
+const layerSliders = [];
+function slider(parent, { label, min, max, step = 1, def = 0, get, set, fmt }) {
+  const row = el('div', 'ctl', `<div class="ctl-head" title="Double-clic : réinitialiser"><span>${label}</span><output></output></div><input type="range" min="${min}" max="${max}" step="${step}">`);
+  const input = row.querySelector('input'), out = row.querySelector('output');
+  const show = () => { input.value = get(); out.textContent = fmt(get()); };
+  input.addEventListener('pointerdown', () => pushUndo());
+  input.addEventListener('input', () => { set(parseFloat(input.value)); out.textContent = fmt(get()); state.dirty = true; scheduleRender(); });
+  row.querySelector('.ctl-head').addEventListener('dblclick', () => { set(def); show(); scheduleRender(); });
+  show();
+  parent.appendChild(row);
+  return show;
+}
+function syncLayerSliders() { layerSliders.forEach(fn => fn()); }
+function field(parent, label, node) { const f = el('div', 'field', `<span>${label}</span>`); f.appendChild(node); parent.appendChild(f); }
+function button(parent, label, onclick, cls) { const b = el('button', cls, label); b.onclick = onclick; parent.appendChild(b); return b; }
+
+function refreshUI() {
+  // Calques
+  const L = $('layers'); L.innerHTML = '';
+  if (state.img) {
+    const g = el('div', 'layer' + (state.selected === 'global' ? ' sel' : ''), `<span class="name">Photo entière</span><span class="tag">${isNeutral(state.global) ? '' : 'filtres'}</span>`);
+    g.onclick = () => { state.selected = 'global'; refreshUI(); scheduleRender(); };
+    L.appendChild(g);
+    state.layers.forEach(z => {
+      const extra = isPiece(z) ? (z.scale !== 1 ? ` · ${Math.round(z.scale * 100)} %` : '') : (z.zoom > 1 ? ' · ×' + z.zoom.toFixed(1) : '');
+      const row = el('div', 'layer' + (z.id === state.selected ? ' sel' : '') + (z.visible ? '' : ' hidden'),
+        `<span class="name">${layerLabel(z)}</span><span class="tag">${SHAPE_NAMES[z.shape]}${extra}</span>`);
+      const eye = el('button', 'eye', z.visible ? '👁' : '—'); eye.title = 'Afficher / masquer';
+      eye.onclick = ev => { ev.stopPropagation(); pushUndo(); z.visible = !z.visible; refreshUI(); scheduleRender(); };
+      row.appendChild(eye);
+      row.onclick = () => { state.selected = z.id; refreshUI(); scheduleRender(); };
+      L.appendChild(row);
+    });
+  }
+  for (const [id, mode] of Object.entries(DRAW_BUTTONS)) $(id).classList.toggle('active', state.drawMode === mode);
+  const hint = $('drawHint');
+  hint.classList.toggle('live', !!state.drawMode);
+  hint.textContent =
+    state.drawMode === 'piece-lasso' ? 'Entourez du doigt (ou à la souris) ce que vous voulez découper, puis relâchez. Vous pourrez ensuite ajuster les points. Échap = annuler.'
+    : state.drawMode === 'piece-poly' ? 'Touchez (ou cliquez) pour poser chaque point du contour. Glisser = déplacer la vue, deux doigts = zoomer. Fermez avec « ✓ Fermer » ou en touchant le premier point.'
+    : state.drawMode ? 'Dessinez la forme sur la photo. Maj = carré / cercle. Échap = annuler.'
+    : "Zoom : deux doigts, pincement du trackpad, ou boutons + / −. Les pixels hors des calques ne sont jamais modifiés (sauf réglages de « Photo entière »).";
+  overlay.style.cursor = state.drawMode ? 'crosshair' : 'default';
+  $('floatbar').hidden = !poly;
+  $('zoomBar').hidden = !state.img;
+
+  // Réglages du calque sélectionné
+  const z = selLayer();
+  $('zoneSec').hidden = !z;
+  const ZC = $('zoneCtl'); ZC.innerHTML = ''; layerSliders.length = 0;
+  if (z) {
+    $('zoneTitle').textContent = layerLabel(z);
+    if (isPiece(z)) {
+      layerSliders.push(slider(ZC, { label: 'Taille', min: 10, max: 400, def: 100, get: () => Math.round(z.scale * 100), set: v => { z.scale = v / 100; }, fmt: v => v + ' %' }));
+      layerSliders.push(slider(ZC, { label: 'Rotation', min: -180, max: 180, get: () => z.rot, set: v => { z.rot = v; }, fmt: v => v + '°' }));
+      const fadeSel = el('select', null, `<option value="auto">Auto (${fadeMode({ ...z, fade: 'auto' }) === 'warp' ? 'raccord' : 'transparence'})</option><option value="warp">Raccord déformé</option><option value="alpha">Transparence</option>`);
+      fadeSel.value = z.fade || 'auto';
+      fadeSel.title = "Raccord déformé : idéal quand la découpe est agrandie sur place, l'agrandissement revient progressivement à ×1 vers le bord (aucun dédoublement). Transparence : la découpe s'estompe vers l'intérieur de son contour (quand elle est déplacée ailleurs).";
+      fadeSel.onchange = () => { pushUndo(); z.fade = fadeSel.value; refreshUI(); scheduleRender(); };
+      field(ZC, 'Type de fondu', fadeSel);
+      const minDim = Math.min(z.src.w, z.src.h);
+      slider(ZC, { label: 'Largeur du fondu', min: 0, max: Math.max(20, Math.round(minDim * 1.5)), def: Math.max(2, Math.round(minDim * 0.5)), get: () => z.feather, set: v => { z.feather = v; }, fmt: v => v ? v + ' px' : 'aucun' });
+      if (fadeMode(z) === 'warp') {
+        slider(ZC, { label: "Débordement à l'extérieur", min: 0, max: 100, def: 50, get: () => z.spill ?? 50, set: v => { z.spill = v; }, fmt: v => v + ' %' });
+        ZC.appendChild(el('p', 'hint', "Pour un fondu plus discret : élargissez le fondu et laissez-le déborder. À 0 %, rien n'est modifié autour du contour ; plus haut, la zone dessinée reste entièrement agrandie et la transition se fait aussi sur le fond autour."));
+      }
+      const row = el('div', 'row'); row.style.marginBottom = '12px';
+      button(row, z.smooth ? '〰 Lissé' : '📐 Anguleux', () => { pushUndo(); z.smooth = !z.smooth; updateSrc(z); refreshUI(); scheduleRender(); }, z.smooth ? 'active' : '');
+      button(row, '⇋ Miroir', () => { pushUndo(); z.flip = !z.flip; refreshUI(); scheduleRender(); }, z.flip ? 'active' : '');
+      button(row, '↺ En place', () => { pushUndo(); z.cx = z.px; z.cy = z.py; z.scale = 1; z.rot = 0; z.flip = false; refreshUI(); scheduleRender(); });
+      ZC.appendChild(row);
+      const av = state.activeVertex;
+      if (av && av.id === z.id && av.i < z.pts.length) {
+        const r2 = el('div', 'row'); r2.style.marginBottom = '12px';
+        button(r2, '✕ Supprimer le point sélectionné', () => { removeVertex(z, av.i); refreshUI(); }, 'danger');
+        ZC.appendChild(r2);
+      }
+    } else {
+      layerSliders.push(slider(ZC, { label: 'Grossissement', min: 1, max: 8, step: 0.05, def: 1, get: () => z.zoom, set: v => { z.zoom = v; }, fmt: v => '×' + v.toFixed(2) }));
+      slider(ZC, { label: 'Fondu du zoom', min: 0, max: 100, def: 60, get: () => z.blend, set: v => { z.blend = v; }, fmt: v => v ? v + ' %' : 'loupe nette' });
+      layerSliders.push(slider(ZC, { label: 'Décalage du zoom ↔', min: -Math.round(state.W / 2), max: Math.round(state.W / 2), get: () => z.ox, set: v => { z.ox = v; }, fmt: v => v + ' px' }));
+      layerSliders.push(slider(ZC, { label: 'Décalage du zoom ↕', min: -Math.round(state.H / 2), max: Math.round(state.H / 2), get: () => z.oy, set: v => { z.oy = v; }, fmt: v => v + ' px' }));
+      slider(ZC, { label: 'Bord adouci', min: 0, max: Math.max(Math.round(Math.min(z.w, z.h) / 2), 10), get: () => z.feather, set: v => { z.feather = v; }, fmt: v => v + ' px' });
+    }
+    slider(ZC, { label: 'Cadre', min: 0, max: 60, get: () => z.border, set: v => { z.border = v; }, fmt: v => v ? v + ' px' : 'aucun' });
+    const col = el('input'); col.type = 'color'; col.value = z.borderColor;
+    col.oninput = () => { z.borderColor = col.value; scheduleRender(); };
+    field(ZC, 'Couleur du cadre', col);
+    const sel = el('select', null, '<option value="composite">Image retouchée</option><option value="original">Photo originale</option>');
+    sel.value = z.source; sel.title = "« Photo originale » ignore les retouches faites en dessous (ex. : tout en N&B sauf ce calque en couleur).";
+    sel.onchange = () => { z.source = sel.value; scheduleRender(); };
+    field(ZC, 'Contenu de départ', sel);
+
+    ZC.appendChild(el('p', 'hint', isPiece(z)
+      ? "Contour : glissez un point rond pour l'ajuster, glissez une ligne pour y ajouter un point. Pour supprimer un point : appui long, double-clic ou bouton « Supprimer le point ». Glissez l'intérieur pour déplacer, un carré de coin pour la taille. ↶ ou ⌘Z = annuler. Le pointillé fin montre d'où la découpe a été prise."
+      : "« Fondu du zoom » : 0 % = loupe à bord net, plus haut = grossissement qui s'estompe vers le bord. ⌥ Option + glisser dans la zone = déplacer ce qui est zoomé."));
+    const row2 = el('div', 'row'); row2.style.marginTop = '10px';
+    button(row2, 'Dupliquer', () => duplicateLayer(z));
+    button(row2, 'Supprimer', () => deleteLayer(z), 'danger');
+    ZC.appendChild(row2);
+  }
+
+  // Filtres
+  const target = state.selected === 'global' ? state.global : z?.f;
+  $('filterSec').hidden = !target || !state.img;
+  const FC = $('filterCtl'); FC.innerHTML = '';
+  if (target) {
+    $('filterTitle').textContent = state.selected === 'global' ? 'Filtres — photo entière' : `Filtres — ${layerLabel(z)}`;
+    for (const d of FILTERS) {
+      slider(FC, { label: d.label, min: d.min, max: d.max, get: () => target[d.k], set: v => { target[d.k] = v; },
+        fmt: v => (d.min < 0 && v > 0 ? '+' : '') + v + (d.unit || '') });
+    }
+    FC.querySelectorAll('input').forEach(i => i.addEventListener('change', () => {
+      const first = $('layers').firstChild;
+      if (first) first.querySelector('.tag').textContent = isNeutral(state.global) ? '' : 'filtres';
+    }));
+  }
+  drawOverlay();
+}
+
+refreshUI();
+
+// App installable / hors connexion (uniquement quand la page est servie en https ; sans effet en fichier local)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
